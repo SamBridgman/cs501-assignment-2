@@ -40,6 +40,24 @@ data class FocusPlan(
     val breakMinutes: Int
 )
 
+fun durationCategory(minutes: Int): String  {
+    return when  {
+        (minutes < 10) -> "Invalid"
+        (minutes in 10..29) -> "Quick Review"
+        (minutes in 30..60) -> "Focused Session"
+        else ->  "Extended Session"
+    }
+}
+
+fun recommendedBreak(minutes: Int): Int {
+    return when {
+        (minutes < 10) -> 0
+        (minutes in 10..29) -> 5
+        (minutes in 30..60) -> 10
+        else -> 15
+    }
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,82 +75,55 @@ fun FocusPlanRoute(
     modifier: Modifier = Modifier
 ) {
 
-    var studySubject by rememberSaveable() {
+    var subject by rememberSaveable() {
         mutableStateOf("")
     }
 
-    var studySubjectError by rememberSaveable() {
-        mutableStateOf(false)
-    }
-
-    var studyMinutes by rememberSaveable() {
+    var minutesText by rememberSaveable() {
         mutableStateOf("")
     }
-    var plan: FocusPlan? = null
-
-    var studyMinutesError by rememberSaveable() {
-        mutableStateOf(false)
+    var plan by remember {
+        mutableStateOf<FocusPlan?>(null)
     }
+    val minutes: Int? = minutesText.toIntOrNull()
 
-    fun updateStudySubject(subject: String) {
-        studySubject = subject
-        if (subject.isBlank()) {
-            studySubjectError = true
-        }
-        else {
-            studySubjectError = false
-        }
-    }
+    val canCreatePlan =
+        subject.isNotBlank() &&
+                minutes != null &&
+                minutes in 10..180
 
-    fun updateStudyMinutes(minutes: String) {
-
-        val minutesAsInt: Int? = minutes.toIntOrNull()
-
-        studyMinutes = minutes
-
-        if (minutes.isBlank() || minutesAsInt !in 10..180 || minutesAsInt == null) {
-            studyMinutesError = true
-        }
-        else {
-
-            studyMinutesError = false
-        }
-    }
-    fun durationCategory(minutes: Int): String  {
-        return when  {
-            (minutes < 10) -> "Invalid"
-            (minutes in 10..29) -> "Quick Review"
-            (minutes in 30..60) -> "Focused Session"
-            else ->  "Extended Session"
-        }
-    }
-
-    fun recommendedBreak(minutes: Int): Int {
-        return when {
-            (minutes < 10) -> 0
-            (minutes in 10..29) -> 5
-            (minutes in 30..60) -> 10
-            else -> 15
-        }
-    }
 
     fun createFocusPlan() {
-        val minutesAsInt: Int = studyMinutes.toInt()
-        plan = FocusPlan(subject = studySubject, minutes = minutesAsInt, category = durationCategory(minutesAsInt), breakMinutes = recommendedBreak(minutesAsInt))
+        if (!canCreatePlan) return
+
+        val validMinutes = minutes ?: return
+
+        plan = FocusPlan(
+            subject = subject.trim(),
+            minutes = validMinutes,
+            category = durationCategory(validMinutes),
+            breakMinutes = recommendedBreak(validMinutes)
+        )
     }
+
 
 
 
 
 
     FocusPlanScreen(modifier,
-        studySubject,
-        studyMinutes,
-        studySubjectError,
-        studyMinutesError,
+        subject,
+        minutesText,
         plan,
-        onSubjectChange = ::updateStudySubject,
-        onMinuteChange = ::updateStudyMinutes,
+        onSubjectChange = { newSubject:String ->
+            subject = newSubject
+            plan = null
+        },
+        onMinutesChange = { newMinutes:String ->
+            minutesText = newMinutes
+            plan = null
+        },
+        canCreatePlan,
         onCreatePlan = ::createFocusPlan
         )
 }
@@ -142,11 +133,10 @@ fun FocusPlanScreen(modifier: Modifier =
                         Modifier,
                     studySubject: String,
                     studyMinutes: String,
-                    studySubjectError: Boolean,
-                    studyMinutesError: Boolean,
                     plan: FocusPlan?,
                     onSubjectChange: (String) -> Unit,
-                    onMinuteChange: (String) -> Unit,
+                    onMinutesChange: (String) -> Unit,
+                    canCreatePlan: Boolean,
                     onCreatePlan: () -> Unit
                     ) {
 
@@ -187,19 +177,13 @@ fun FocusPlanScreen(modifier: Modifier =
 
                 modifier = Modifier.weight(0.6f),
                 maxLines = 20,
-                isError = studySubjectError,
 
-                supportingText = {
-                    if (studySubjectError) {
-                        Text("Enter a study subject")
-                    }
-                }
             )
 
                 OutlinedTextField(
                     value = studyMinutes,
                     onValueChange = {
-                        onMinuteChange(it)
+                        onMinutesChange(it)
                     },
 
                     modifier = Modifier.weight(0.4f),
@@ -212,13 +196,6 @@ fun FocusPlanScreen(modifier: Modifier =
                         keyboardType = KeyboardType.Number
                     ),
                     maxLines = 1,
-                    isError = studyMinutesError,
-
-                    supportingText = {
-                        if (studyMinutesError) {
-                            Text("Number must be between 10-180")
-                        }
-                    }
                 )
 
         }
@@ -227,7 +204,7 @@ fun FocusPlanScreen(modifier: Modifier =
             onClick = {
                 onCreatePlan()
             },
-            enabled = !studyMinutesError && !studySubjectError && studySubject.isNotBlank() && studyMinutes.isNotBlank()
+            enabled = canCreatePlan
         ) {
             Text("Create Plan")
         }
@@ -235,6 +212,11 @@ fun FocusPlanScreen(modifier: Modifier =
         Card(
             modifier.fillMaxWidth()
         ) {
+
+            Text(plan?.minutes.toString())
+            Text(plan?.breakMinutes.toString())
+            Text(plan?.subject.toString())
+            Text(plan?.category.toString())
 
         }
 
